@@ -109,14 +109,14 @@
             flex-direction: column;
         }
         
-        /* This is the key for Android TV focus state */
+        .episode-list-item.active,
+        .tab-button.active,
         .focusable:focus,
         .video-control-btn:focus,
         .episode-list-item:focus {
             outline: 2px solid #4ecdc4;
-            outline-offset: 4px; /* Increased offset for better visibility */
+            outline-offset: 2px;
             box-shadow: 0 0 10px rgba(78, 205, 196, 0.5);
-            transform: scale(1.05);
         }
 
         /* Custom video controls styling */
@@ -303,6 +303,7 @@
         <div id="loading-message" class="flex items-center justify-center py-12">
             <p class="text-xl font-medium">Loading data...</p>
         </div>
+
         <div id="error-message" class="hidden text-center text-red-400 p-4 text-xl">
             <p>Failed to fetch data from the API. Please check if the backend is running.</p>
         </div>
@@ -312,571 +313,657 @@
     </div>
 
     <!-- Video Player Modal -->
-    <div id="video-player-modal" class="hidden video-player-modal fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="player-container relative w-full h-full lg:h-3/4 flex flex-col lg:flex-row bg-gray-800 rounded-xl overflow-hidden">
-            <!-- Player Wrapper -->
-            <div class="video-player-wrapper flex flex-col justify-center items-center w-full lg:w-3/4 relative">
-                <video id="video-player" class="w-full h-full object-contain" controls>
-                    Your browser does not support the video tag.
-                </video>
-                <div class="custom-video-controls hidden lg:flex items-center justify-between w-full p-4 absolute bottom-0">
-                    <button id="play-pause-btn" class="video-control-btn text-4xl p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-opacity-50">▶</button>
-                    <div id="seek-bar-container" class="seek-bar-container mx-4">
-                        <div id="seek-bar" class="seek-bar w-full h-2 bg-gray-600 rounded-full cursor-pointer">
-                            <div id="seek-bar-filled" class="seek-bar-filled h-full bg-teal-400 rounded-full"></div>
-                        </div>
-                    </div>
-                    <div id="video-time" class="text-sm w-24 text-right">00:00 / 00:00</div>
-                    <button id="fullscreen-btn" class="video-control-btn text-2xl p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-opacity-50">⛶</button>
+    <div id="videoModal" class="hidden video-ui-container">
+        <!-- Video Player Section -->
+        <div id="videoPlayerWrapper" class="video-player-wrapper">
+            <button id="closePlayerBtn" class="absolute top-4 right-4 text-white text-3xl font-bold z-20 p-2 bg-gray-900 rounded-full hover:bg-gray-700 transition-colors" data-focusable="true">✕</button>
+            
+            <!-- Video Info Overlay (hidden by default) -->
+            <div id="videoInfoOverlay" class="video-info-overlay">
+                <img id="videoInfoThumbnail" src="" alt="Thumbnail" class="w-64 h-96 object-cover rounded-xl shadow-lg mb-4">
+                <h3 id="videoInfoTitle" class="text-3xl font-bold text-white"></h3>
+            </div>
+
+            <!-- Episode list overlay (hidden by default) -->
+            <div id="episodeOverlay" class="episode-overlay">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">Episodes</h3>
+                    <button id="closeEpisodeOverlayBtn" class="text-white text-3xl font-bold p-2 hover:bg-gray-700 rounded-full transition-colors" data-focusable="true">✕</button>
                 </div>
-                <div id="video-loading-spinner" class="loading-spinner"></div>
-                <div id="video-info-overlay" class="video-info-overlay visible">
-                    <img id="video-info-thumbnail" src="" alt="Thumbnail" class="w-32 h-48 rounded-lg mb-4">
-                    <h2 id="video-info-title" class="text-3xl font-bold mb-2"></h2>
-                    <p id="video-info-subtitle" class="text-xl text-gray-400"></p>
-                    <button id="close-player-btn" class="close-player absolute top-4 right-4 text-gray-400 hover:text-white text-4xl transform transition-transform duration-300 ease-in-out focusable" data-focusable="true">×</button>
-                </div>
-                 <!-- Error Dialog -->
-                <div id="video-error-dialog" class="error-dialog hidden">
-                    <p id="video-error-message" class="text-lg font-semibold mb-4"></p>
-                    <button id="video-error-ok-btn" class="focusable bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-full transition-all duration-300">OK</button>
+                <div id="episodeSelector" class="flex-grow overflow-y-auto">
+                    <!-- Episodes will be dynamically injected here -->
                 </div>
             </div>
 
-            <!-- Sidebar for Episodes/Seasons -->
-            <div id="video-player-sidebar" class="hidden lg:block w-full lg:w-1/4 p-4 border-l border-gray-700 overflow-y-auto episode-selector">
-                <h3 class="text-2xl font-semibold mb-4">Episodes</h3>
-                <div id="episode-list">
-                    <!-- Episode buttons will be injected here -->
+            <!-- Loading Spinner (hidden by default) -->
+            <div id="videoLoadingSpinner" class="loading-spinner"></div>
+            
+            <!-- Error Dialog (hidden by default) -->
+            <div id="videoErrorDialog" class="error-dialog">
+                <h4 class="text-xl font-bold mb-2">Streaming Error</h4>
+                <p>Failed to load the video stream. The server might be down or the URL is invalid.</p>
+                <button id="closeErrorBtn" class="mt-4 py-2 px-4 bg-teal-500 rounded-lg font-semibold hover:bg-teal-600 transition-colors" data-focusable="true">OK</button>
+            </div>
+
+            <video class="w-full h-full video-fit-contain" id="videoPlayer"></video>
+
+            <!-- Custom Video Controls -->
+            <div id="videoControls" class="custom-video-controls">
+                <button id="playPauseBtn" class="video-control-btn text-2xl" data-focusable="true">▶</button>
+                <div class="seek-bar-container">
+                    <div id="seekBar" class="seek-bar" data-focusable="true">
+                        <div id="seekBarFilled" class="seek-bar-filled"></div>
+                    </div>
                 </div>
+                <span id="currentTime">00:00</span>
+                <span>/</span>
+                <span id="duration">00:00</span>
+                <!-- New Video Fit button and menu -->
+                <div class="relative">
+                    <button id="videoFitBtn" class="video-control-btn text-xl" data-focusable="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                    </button>
+                    <div id="videoFitMenu" class="absolute bottom-full mb-2 right-0 w-32 bg-gray-800 rounded-lg shadow-lg hidden">
+                        <button class="video-fit-option w-full text-left px-4 py-2 hover:bg-gray-700 rounded-t-lg" data-fit="contain" data-focusable="true">Fit</button>
+                        <button class="video-fit-option w-full text-left px-4 py-2 hover:bg-gray-700" data-fit="cover" data-focusable="true">Fill</button>
+                        <button class="video-fit-option w-full text-left px-4 py-2 hover:bg-gray-700" data-fit="fill" data-focusable="true">Stretch</button>
+                        <button class="video-fit-option w-full text-left px-4 py-2 hover:bg-gray-700 rounded-b-lg" data-fit="auto" data-focusable="true">Auto</button>
+                    </div>
+                </div>
+                <!-- New Episodes button -->
+                <button id="episodesBtn" class="video-control-btn text-xl" data-focusable="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-ordered"><line x1="10" x2="21" y1="6" y2="6"/><line x1="10" x2="21" y1="12" y2="12"/><line x1="10" x2="21" y1="18" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-2"/></svg>
+                </button>
+                <button id="fullscreenBtn" class="video-control-btn text-xl" data-focusable="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-maximize">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                        <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                        <path d="M16 21h3a2 0 0 0 2-2v-3" />
+                        <path d="M8 21H5a2 0 0 1-2-2v-3" />
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
-    
+
+
+    <!-- JavaScript for fetching data and rendering the UI -->
     <script>
-        const API_BASE_URL = 'https://future-ester-seeutech-645c6129.koyeb.app/api';
+        document.addEventListener('DOMContentLoaded', () => {
+            // Base URL for the backend API.
+            const API_BASE_URL = 'https://future-ester-seeutech-645c6129.koyeb.app/api';
 
-        const contentArea = document.getElementById('content-area');
-        const headerContainer = document.getElementById('header-container');
-        const searchInput = document.getElementById('search-input');
-        const loadingMessage = document.getElementById('loading-message');
-        const errorMessage = document.getElementById('error-message');
-        const mediaGrid = document.getElementById('media-grid');
-        const moviesTab = document.getElementById('movies-tab');
-        const seriesTab = document.getElementById('series-tab');
-        const statsContainer = document.getElementById('stats-container');
+            // DOM elements
+            const headerContainer = document.getElementById('header-container');
+            const searchInput = document.getElementById('search-input');
+            const statsContainer = document.getElementById('stats-container');
+            const contentArea = document.getElementById('content-area');
+            const loadingMessage = document.getElementById('loading-message');
+            const errorMessage = document.getElementById('error-message');
+            const mediaGrid = document.getElementById('media-grid');
+            const moviesTab = document.getElementById('movies-tab');
+            const seriesTab = document.getElementById('series-tab');
+            const videoModal = document.getElementById('videoModal');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const videoPlayerWrapper = document.getElementById('videoPlayerWrapper');
+            
+            // Custom video player controls
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const seekBar = document.getElementById('seekBar');
+            const seekBarFilled = document.getElementById('seekBarFilled');
+            const currentTimeSpan = document.getElementById('currentTime');
+            const durationSpan = document.getElementById('duration');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const episodesBtn = document.getElementById('episodesBtn');
+            const videoFitBtn = document.getElementById('videoFitBtn');
+            const videoFitMenu = document.getElementById('videoFitMenu');
+            const closePlayerBtn = document.getElementById('closePlayerBtn');
 
-        const videoPlayerModal = document.getElementById('video-player-modal');
-        const videoPlayer = document.getElementById('video-player');
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const seekBar = document.getElementById('seek-bar');
-        const seekBarFilled = document.getElementById('seek-bar-filled');
-        const videoTime = document.getElementById('video-time');
-        const fullscreenBtn = document.getElementById('fullscreen-btn');
-        const closePlayerBtn = document.getElementById('close-player-btn');
-        const episodeList = document.getElementById('episode-list');
-        const videoInfoOverlay = document.getElementById('video-info-overlay');
-        const videoInfoThumbnail = document.getElementById('video-info-thumbnail');
-        const videoInfoTitle = document.getElementById('video-info-title');
-        const videoInfoSubtitle = document.getElementById('video-info-subtitle');
-        const videoLoadingSpinner = document.getElementById('video-loading-spinner');
-        const videoErrorDialog = document.getElementById('video-error-dialog');
-        const videoErrorMessage = document.getElementById('video-error-message');
-        const videoErrorOkBtn = document.getElementById('video-error-ok-btn');
-        const episodeOverlay = document.getElementById('episode-overlay');
-        const videoPlayerSidebar = document.getElementById('video-player-sidebar');
+            // Video info and loading elements
+            const videoInfoOverlay = document.getElementById('videoInfoOverlay');
+            const videoInfoThumbnail = document.getElementById('videoInfoThumbnail');
+            const videoInfoTitle = document.getElementById('videoInfoTitle');
+            const videoLoadingSpinner = document.getElementById('videoLoadingSpinner');
+            
+            // Episode list overlay
+            const episodeOverlay = document.getElementById('episodeOverlay');
+            const episodeSelector = document.getElementById('episodeSelector');
+            const closeEpisodeOverlayBtn = document.getElementById('closeEpisodeOverlayBtn');
+            
+            // Error dialog
+            const videoErrorDialog = document.getElementById('videoErrorDialog');
+            const closeErrorBtn = document.getElementById('closeErrorBtn');
 
-        let allMovies = [];
-        let allSeries = [];
-        let currentMediaType = 'movies';
-        let currentMedia = null;
-        let activeElementIndex = 0;
-        let focusableElements = [];
+            // Store the fetched data and current state
+            let allMovies = [];
+            let allSeries = [];
+            let currentSeries = null;
+            let activeTab = 'movies';
+            let currentPlayingUrl = '';
+            let currentMedia = null;
+            let controlsTimeout = null;
 
-        /**
-         * Fetches media data from the API with exponential backoff.
-         * @param {string} endpoint - The API endpoint to fetch.
-         * @param {number} retries - Number of retries.
-         * @param {number} delay - Initial delay in ms.
-         */
-        async function fetchDataWithRetry(endpoint, retries = 3, delay = 1000) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(`${API_BASE_URL}${endpoint}`);
-                    if (!response.ok) {
-                        throw new Error(`API returned status ${response.status}`);
-                    }
-                    return await response.json();
-                } catch (error) {
-                    console.error(`Attempt ${i + 1} failed for ${endpoint}:`, error);
-                    if (i < retries - 1) {
-                        await new Promise(res => setTimeout(res, delay));
-                        delay *= 2; // Exponential backoff
-                    } else {
-                        throw error;
-                    }
+            // Remote control navigation state
+            let focusableElements = [];
+            let currentFocusIndex = -1;
+            let videoControlsFocused = false;
+
+            // Function to handle remote control navigation
+            const setupRemoteNavigation = () => {
+                // Find all focusable elements on the page
+                focusableElements = Array.from(document.querySelectorAll('[data-focusable="true"]'));
+                const mediaCards = Array.from(document.querySelectorAll('.media-card'));
+                focusableElements = focusableElements.concat(mediaCards);
+                
+                // Set initial focus
+                if (focusableElements.length > 0) {
+                    currentFocusIndex = 0;
+                    focusableElements[currentFocusIndex].focus();
                 }
-            }
-        }
 
-        /**
-         * Fetches all data and updates the UI.
-         */
-        async function fetchAllData() {
-            loadingMessage.classList.remove('hidden');
-            errorMessage.classList.add('hidden');
-            try {
-                const [movies, series, stats] = await Promise.all([
-                    fetchDataWithRetry('/movies'),
-                    fetchDataWithRetry('/series'),
-                    fetchDataWithRetry('/stats')
-                ]);
-                allMovies = movies;
-                allSeries = series;
-                updateStats(stats);
-                updateMediaGrid();
+                document.addEventListener('keydown', (e) => {
+                    if (videoModal.classList.contains('hidden')) {
+                        // Main content navigation
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                            e.preventDefault();
+                            if (focusableElements[currentFocusIndex]) {
+                                focusableElements[currentFocusIndex].blur();
+                            }
+                            
+                            let nextIndex = currentFocusIndex;
+                            if (e.key === 'ArrowDown') nextIndex = (currentFocusIndex + 1) % focusableElements.length;
+                            if (e.key === 'ArrowUp') nextIndex = (currentFocusIndex - 1 + focusableElements.length) % focusableElements.length;
+                            
+                            // For left/right, try to find an element on the same "row" or "level"
+                            // This is a simple implementation, a more robust one would involve calculating positions
+                            if (e.key === 'ArrowRight' && currentFocusIndex < focusableElements.length - 1) nextIndex++;
+                            if (e.key === 'ArrowLeft' && currentFocusIndex > 0) nextIndex--;
+                            
+                            currentFocusIndex = nextIndex;
+                            focusableElements[currentFocusIndex].focus();
+                        } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (focusableElements[currentFocusIndex]) {
+                                focusableElements[currentFocusIndex].click();
+                            }
+                        }
+                    } else {
+                        // Video player navigation
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            // Up/Down on the remote should navigate the episode list
+                            if (episodeOverlay.classList.contains('visible')) {
+                                const episodeItems = Array.from(episodeSelector.querySelectorAll('.episode-list-item'));
+                                if (episodeItems.length > 0) {
+                                    let episodeFocusIndex = episodeItems.findIndex(item => item === document.activeElement);
+                                    if (e.key === 'ArrowDown') {
+                                        episodeFocusIndex = (episodeFocusIndex + 1) % episodeItems.length;
+                                    } else if (e.key === 'ArrowUp') {
+                                        episodeFocusIndex = (episodeFocusIndex - 1 + episodeItems.length) % episodeItems.length;
+                                    }
+                                    episodeItems[episodeFocusIndex].focus();
+                                }
+                            }
+                        } else if (e.key === 'ArrowLeft') {
+                            videoPlayer.currentTime -= 10; // Seek backward 10 seconds
+                        } else if (e.key === 'ArrowRight') {
+                            videoPlayer.currentTime += 10; // Seek forward 10 seconds
+                        } else if (e.key === 'Enter') {
+                            if (document.activeElement.id === 'playPauseBtn') {
+                                playPauseVideo();
+                            } else if (document.activeElement.id === 'fullscreenBtn') {
+                                toggleFullscreen();
+                            } else if (document.activeElement.id === 'episodesBtn') {
+                                toggleEpisodeOverlay();
+                            } else if (document.activeElement.classList.contains('episode-list-item')) {
+                                document.activeElement.click();
+                            } else if (document.activeElement.id === 'closeErrorBtn') {
+                                hideVideoError();
+                            } else if (document.activeElement.id === 'videoFitBtn') {
+                                videoFitMenu.classList.toggle('hidden');
+                            } else if (document.activeElement.classList.contains('video-fit-option')) {
+                                changeVideoFit(document.activeElement.dataset.fit);
+                                videoFitMenu.classList.add('hidden');
+                            }
+                        } else if (e.key === 'Escape') {
+                            if (videoErrorDialog.classList.contains('visible')) {
+                                hideVideoError();
+                            } else if (episodeOverlay.classList.contains('visible')) {
+                                toggleEpisodeOverlay();
+                            } else {
+                                closePlayer();
+                            }
+                        }
+                    }
+                });
+            };
+
+            // Function to fetch all data from the API
+            const fetchAllData = async () => {
+                loadingMessage.classList.remove('hidden');
+                try {
+                    const [moviesResponse, seriesResponse, statsResponse] = await Promise.all([
+                        fetch(`${API_BASE_URL}/movies`),
+                        fetch(`${API_BASE_URL}/series`),
+                        fetch(`${API_BASE_URL}/stats`)
+                    ]);
+                    
+                    if (!moviesResponse.ok || !seriesResponse.ok || !statsResponse.ok) {
+                        throw new Error('One or more API responses were not successful.');
+                    }
+
+                    allMovies = await moviesResponse.json();
+                    allSeries = await seriesResponse.json();
+                    const stats = await statsResponse.json();
+                    updateStats(stats);
+                    loadingMessage.classList.add('hidden');
+                } catch (e) {
+                    console.error("Failed to fetch data:", e);
+                    errorMessage.classList.remove('hidden');
+                    loadingMessage.classList.add('hidden');
+                }
+            };
+            
+            // Function to handle search input
+            const handleSearch = async () => {
+                const query = searchInput.value.toLowerCase().trim();
+
+                // Hide all content until at least 3 characters are typed
+                if (query.length < 3) {
+                    // Hide the main content area and show the search container
+                    contentArea.classList.add('hidden');
+                    headerContainer.classList.add('hidden');
+                    mediaGrid.innerHTML = '';
+                    // The main-container is already displayed, so no need to change it
+                    return;
+                }
+
+                // Show content area and header
                 contentArea.classList.remove('hidden');
                 headerContainer.classList.remove('hidden');
-                loadingMessage.classList.add('hidden');
-                // Set initial focus
-                setTimeout(setInitialFocus, 100);
-            } catch (error) {
-                console.error("Failed to load all data:", error);
-                loadingMessage.classList.add('hidden');
-                errorMessage.classList.remove('hidden');
-            }
-        }
-        
-        /**
-         * Shows the error dialog with a specific message.
-         * @param {string} message - The message to display.
-         */
-        function showVideoError(message) {
-            videoErrorMessage.textContent = message;
-            videoErrorDialog.classList.remove('hidden');
-            videoErrorDialog.classList.add('visible');
-            videoErrorOkBtn.focus();
-        }
+                
+                // If data hasn't been fetched yet, fetch it.
+                if (allMovies.length === 0 && allSeries.length === 0) {
+                    await fetchAllData();
+                }
 
-        /**
-         * Hides the video error dialog.
-         */
-        function hideVideoError() {
-            videoErrorDialog.classList.remove('visible');
-            videoErrorDialog.classList.add('hidden');
-        }
+                // Filter the fetched data based on the query
+                const filteredMovies = allMovies.filter(movie => movie.name.toLowerCase().includes(query));
+                const filteredSeries = allSeries.filter(series => series.name.toLowerCase().includes(query));
+                
+                // Update stats based on filtered data
+                const filteredStats = {
+                    movies: filteredMovies.length,
+                    series: filteredSeries.length,
+                    episodes: filteredSeries.reduce((total, series) => total + (series.seasons?.length || 0), 0) // Simplified episode count
+                };
+                updateStats(filteredStats);
 
-        /**
-         * Updates the statistics in the header.
-         * @param {object} stats - The statistics object from the API.
-         */
-        function updateStats(stats) {
-            statsContainer.innerHTML = `
-                <span class="text-sm font-semibold text-gray-400">Total Movies: <span class="text-teal-400">${stats.movieCount}</span></span>
-                <span class="text-sm font-semibold text-gray-400">Total Series: <span class="text-teal-400">${stats.seriesCount}</span></span>
-            `;
-        }
+                // Render the filtered content
+                renderContent(filteredMovies, filteredSeries);
+            };
 
-        /**
-         * Renders the media grid based on the current media type and search query.
-         * @param {string} query - The search query.
-         */
-        function updateMediaGrid(query = '') {
-            const media = currentMediaType === 'movies' ? allMovies : allSeries;
-            const filteredMedia = media.filter(item =>
-                item.name.toLowerCase().includes(query.toLowerCase())
-            );
-
-            mediaGrid.innerHTML = '';
-            filteredMedia.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'media-card relative overflow-hidden rounded-xl cursor-pointer shadow-lg transform transition-all duration-300 focusable group';
-                card.tabIndex = 0; // Make card focusable
-                card.setAttribute('data-focusable', 'true');
-                card.setAttribute('data-id', item._id);
-                card.innerHTML = `
-                    <img src="${item.thumbnail || 'https://placehold.co/400x600/1f2937/d1d5db?text=No+Image'}" alt="${item.name}" class="w-full h-auto object-cover rounded-xl transition-transform duration-300 group-focus:scale-110 group-hover:scale-110">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-70"></div>
-                    <div class="absolute bottom-0 left-0 p-4 w-full">
-                        <h3 class="text-lg font-semibold text-white truncate">${item.name}</h3>
+            // Function to update the stats in the header
+            const updateStats = (currentStats) => {
+                statsContainer.innerHTML = `
+                    <div class="flex flex-col items-center">
+                        <span class="text-2xl font-bold text-teal-400">${currentStats.movies}</span>
+                        <span class="text-sm text-gray-400">Movies</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-2xl font-bold text-purple-400">${currentStats.series}</span>
+                        <span class="text-sm text-gray-400">Series</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-2xl font-bold text-orange-400">${currentStats.episodes}</span>
+                        <span class="text-sm text-gray-400">Episodes</span>
                     </div>
                 `;
-                card.addEventListener('click', () => openVideoPlayer(item));
-                mediaGrid.appendChild(card);
-            });
-            updateFocusableElements();
-        }
+            };
 
-        /**
-         * Opens the video player modal for a given media item.
-         * @param {object} media - The media item to play.
-         */
-        function openVideoPlayer(media) {
-            currentMedia = media;
-            videoPlayerModal.classList.remove('hidden');
-            videoInfoOverlay.classList.add('visible');
-            videoInfoThumbnail.src = media.thumbnail || 'https://placehold.co/400x600/1f2937/d1d5db?text=No+Image';
-            videoInfoTitle.textContent = media.name;
-            playPauseBtn.textContent = '▶';
-            
-            // Set initial video source for movies
-            if (currentMediaType === 'movies') {
-                videoPlayer.src = media.streamingUrl;
-                videoInfoSubtitle.textContent = 'Movie';
-                videoPlayerSidebar.classList.add('hidden');
-            } else { // Handle series
-                videoPlayerSidebar.classList.remove('hidden');
-                // Find the first episode of the first season and set it
-                if (media.seasons && media.seasons.length > 0) {
-                    const firstSeason = media.seasons[0];
-                    if (firstSeason.episodes && firstSeason.episodes.length > 0) {
-                        const firstEpisode = firstSeason.episodes[0];
-                        videoPlayer.src = firstEpisode.streamingUrl;
-                        videoInfoSubtitle.textContent = `S${firstSeason.seasonNumber} E${firstEpisode.episodeNumber}: ${firstEpisode.title}`;
-                        renderEpisodeList(media);
-                    } else {
-                        showVideoError("No episodes found for this series.");
-                    }
+            // Function to render a single media card element
+            const createMediaCard = (item, type) => {
+                const card = document.createElement('div');
+                card.className = 'media-card relative w-full overflow-hidden bg-gray-800 rounded-2xl shadow-xl cursor-pointer focusable';
+                card.setAttribute('tabindex', '0'); // Make div focusable
+                card.setAttribute('data-focusable', 'true');
+
+                const thumbnail = item.thumbnail || 'https://placehold.co/400x600/1f2937/d1d5db?text=No+Image';
+                const seasonsInfo = type === 'series' && item.seasons
+                    ? `<p class="text-sm text-gray-400 mt-1">${item.seasons.length} ${item.seasons.length > 1 ? 'seasons' : 'season'}</p>`
+                    : '';
+
+                card.innerHTML = `
+                    <img src="${thumbnail}" alt="${item.name}" class="w-full h-80 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x600/1f2937/d1d5db?text=No+Image';">
+                    <div class="p-4">
+                        <h3 class="text-lg font-semibold text-white truncate">${item.name}</h3>
+                        ${seasonsInfo}
+                    </div>
+                `;
+
+                // Add click event to play video or load series details
+                if (type === 'series') {
+                    card.addEventListener('click', () => loadSeriesDetails(item._id));
                 } else {
-                    showVideoError("No seasons or episodes found for this series.");
+                    card.addEventListener('click', () => playVideo(item));
                 }
-            }
-            videoPlayer.load();
-            videoPlayerModal.focus(); // Focus on the modal
-            updateFocusableElements();
-        }
 
-        /**
-         * Renders the episode list for a series.
-         * @param {object} series - The series item.
-         */
-        function renderEpisodeList(series) {
-            episodeList.innerHTML = '';
-            series.seasons.forEach(season => {
-                const seasonTitle = document.createElement('h4');
-                seasonTitle.className = 'text-lg font-semibold text-gray-300 mt-4 mb-2';
-                seasonTitle.textContent = `Season ${season.seasonNumber}`;
-                episodeList.appendChild(seasonTitle);
-                
-                season.episodes.forEach(episode => {
-                    const episodeBtn = document.createElement('button');
-                    episodeBtn.className = 'episode-list-item w-full flex items-center justify-start p-2 rounded-lg my-1 transition-colors duration-200 focusable';
-                    episodeBtn.tabIndex = 0;
-                    episodeBtn.setAttribute('data-focusable', 'true');
-                    episodeBtn.setAttribute('data-url', episode.streamingUrl);
-                    episodeBtn.setAttribute('data-episode-title', `S${season.seasonNumber} E${episode.episodeNumber}: ${episode.title}`);
-                    episodeBtn.innerHTML = `
-                        <span class="text-sm font-medium">E${episode.episodeNumber}: ${episode.title}</span>
-                    `;
-                    episodeBtn.addEventListener('click', () => {
-                        playEpisode(episode.streamingUrl, `S${season.seasonNumber} E${episode.episodeNumber}: ${episode.title}`);
+                return card;
+            };
+
+            // Function to render the media content based on the active tab
+            const renderContent = (moviesToRender, seriesToRender) => {
+                mediaGrid.innerHTML = ''; // Clear previous content
+
+                const dataToRender = activeTab === 'movies' ? moviesToRender : seriesToRender;
+                const type = activeTab === 'movies' ? 'movie' : 'series';
+                const emptyMessage = `
+                    <div class="col-span-full text-center text-gray-500 text-lg py-12">
+                        No ${activeTab} found for this search query.
+                    </div>
+                `;
+
+                if (dataToRender.length > 0) {
+                    dataToRender.forEach(item => {
+                        const card = createMediaCard(item, type);
+                        mediaGrid.appendChild(card);
                     });
-                    episodeList.appendChild(episodeBtn);
+                } else {
+                    mediaGrid.innerHTML = emptyMessage;
+                }
+                
+                // Re-setup remote navigation for new elements
+                setupRemoteNavigation();
+            };
+            
+            // Function to fetch and display episodes for a series, then play the first one
+            const loadSeriesDetails = async (seriesId) => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/series/${seriesId}`);
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch series details.');
+                    }
+                    currentSeries = await response.json();
+                    
+                    if (currentSeries.seasons && currentSeries.seasons.length > 0 && 
+                        currentSeries.seasons[0].episodes && currentSeries.seasons[0].episodes.length > 0) {
+                        const firstEpisode = {
+                            ...currentSeries.seasons[0].episodes[0],
+                            thumbnail: currentSeries.thumbnail,
+                            seriesName: currentSeries.name
+                        };
+                        playVideo(firstEpisode, 'series');
+                    } else {
+                        console.error('No episodes available for this series.');
+                    }
+                } catch (e) {
+                    console.error('Error loading series details:', e);
+                    showVideoError();
+                }
+            };
+
+            // Function to handle tab switching
+            const switchTab = (tab) => {
+                activeTab = tab;
+                if (tab === 'movies') {
+                    moviesTab.classList.add('text-white', 'border-b-2', 'border-teal-400');
+                    seriesTab.classList.remove('text-white', 'border-b-2', 'border-purple-400');
+                    seriesTab.classList.add('text-gray-400', 'hover:text-gray-200');
+                } else {
+                    seriesTab.classList.add('text-white', 'border-b-2', 'border-purple-400');
+                    moviesTab.classList.remove('text-white', 'border-b-2', 'border-teal-400');
+                    moviesTab.classList.add('text-gray-400', 'hover:text-gray-200');
+                }
+
+                // Re-render content based on the current search query
+                const query = searchInput.value.toLowerCase().trim();
+                const filteredMovies = allMovies.filter(movie => movie.name.toLowerCase().includes(query));
+                const filteredSeries = allSeries.filter(series => series.name.toLowerCase().includes(query));
+                renderContent(filteredMovies, filteredSeries);
+            };
+
+            // Function to handle playing the video
+            window.playVideo = (mediaItem, type = 'movie') => {
+                if (!mediaItem || !mediaItem.streamingUrl) {
+                    showVideoError();
+                    return;
+                }
+                
+                videoPlayer.src = mediaItem.streamingUrl;
+                currentMedia = mediaItem; // Store the current media item
+                videoModal.classList.remove('hidden');
+                
+                if (type === 'series' && currentSeries) {
+                    episodesBtn.classList.remove('hidden');
+                    displayEpisodeSelector(mediaItem.streamingUrl);
+                } else {
+                    episodesBtn.classList.add('hidden');
+                }
+                
+                // Play the video and handle promise rejection
+                videoPlayer.play().then(() => {
+                    hideVideoError();
+                }).catch(e => {
+                    console.error('Error playing video:', e);
+                    showVideoError();
+                });
+            };
+
+            // Function to display the list of episodes in the overlay
+            window.displayEpisodeSelector = (currentUrl) => {
+                episodeSelector.innerHTML = ''; // Clear previous content
+                currentSeries.seasons.forEach(season => {
+                    const seasonTitle = document.createElement('h4');
+                    seasonTitle.className = 'text-lg font-semibold mt-4 mb-2 text-teal-400';
+                    seasonTitle.textContent = `Season ${season.seasonNumber}`;
+                    episodeSelector.appendChild(seasonTitle);
+
+                    season.episodes.forEach(episode => {
+                        const button = document.createElement('button');
+                        const isCurrent = episode.streamingUrl === currentUrl;
+                        
+                        button.className = `episode-list-item w-full text-left p-3 rounded-lg transition-colors duration-200 hover:bg-gray-700 focusable ${isCurrent ? 'active bg-gray-700' : ''}`;
+                        button.setAttribute('data-focusable', 'true');
+                        button.setAttribute('tabindex', '0');
+                        button.innerHTML = `
+                            <div class="flex items-center">
+                                <span class="font-bold mr-2">E${episode.episodeNumber}:</span>
+                                <span class="truncate">${episode.title}</span>
+                            </div>
+                        `;
+                        button.onclick = () => {
+                            const newMediaItem = {
+                                ...episode,
+                                thumbnail: currentSeries.thumbnail
+                            };
+                            currentMedia = newMediaItem;
+                            switchEpisode(newMediaItem);
+                        }
+                        episodeSelector.appendChild(button);
+                    });
+                });
+            };
+
+            // Function to toggle the visibility of the episode overlay
+            window.toggleEpisodeOverlay = () => {
+                episodeOverlay.classList.toggle('visible');
+            }
+
+            // Function to switch to a new episode
+            window.switchEpisode = (mediaItem) => {
+                if (!mediaItem || !mediaItem.streamingUrl) {
+                    showVideoError();
+                    return;
+                }
+                videoPlayer.src = mediaItem.streamingUrl;
+                videoPlayer.play().then(() => {
+                    hideVideoError();
+                }).catch(e => {
+                    console.error('Error playing video:', e);
+                    showVideoError();
+                });
+                displayEpisodeSelector(mediaItem.streamingUrl); // Re-render to highlight the new episode
+                toggleEpisodeOverlay(); // Close the overlay after selection
+            };
+
+            // Function to close the video player modal
+            window.closePlayer = () => {
+                videoPlayer.pause();
+                videoPlayer.src = '';
+                videoModal.classList.add('hidden');
+                currentSeries = null;
+                currentMedia = null;
+                clearTimeout(controlsTimeout);
+                hideVideoError(); // Also hide any error dialog
+                
+                // Exit fullscreen if active
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
+            };
+            
+            // Function to show the video error dialog
+            window.showVideoError = () => {
+                videoErrorDialog.classList.add('visible');
+                // Ensure other overlays are hidden
+                videoLoadingSpinner.classList.remove('visible');
+                videoInfoOverlay.classList.remove('visible');
+                videoPlayer.pause();
+            };
+            
+            // Function to hide the video error dialog
+            window.hideVideoError = () => {
+                videoErrorDialog.classList.remove('visible');
+            };
+
+            // Video player control functions
+            const formatTime = (timeInSeconds) => {
+                const minutes = Math.floor(timeInSeconds / 60);
+                const seconds = Math.floor(timeInSeconds % 60);
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            };
+            
+            const playPauseVideo = () => {
+                if (videoPlayer.paused) {
+                    videoPlayer.play().catch(e => {
+                        console.error('Error resuming video:', e);
+                        showVideoError();
+                    });
+                } else {
+                    videoPlayer.pause();
+                }
+            };
+
+            const showControls = () => {
+                videoPlayerWrapper.classList.add('show-controls');
+                clearTimeout(controlsTimeout);
+                controlsTimeout = setTimeout(() => {
+                    videoPlayerWrapper.classList.remove('show-controls');
+                }, 3000);
+            };
+            
+            const toggleFullscreen = () => {
+                if (!document.fullscreenElement) {
+                    videoModal.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            };
+
+            const changeVideoFit = (fit) => {
+                // Remove all previous fit classes
+                videoPlayer.classList.remove('video-fit-fill', 'video-fit-contain', 'video-fit-cover', 'video-fit-auto');
+                // Add the selected fit class
+                videoPlayer.classList.add(`video-fit-${fit}`);
+            };
+
+            // Event listeners
+            searchInput.addEventListener('input', handleSearch);
+            moviesTab.addEventListener('click', () => switchTab('movies'));
+            seriesTab.addEventListener('click', () => switchTab('series'));
+            
+            // Video player events
+            playPauseBtn.addEventListener('click', playPauseVideo);
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            episodesBtn.addEventListener('click', toggleEpisodeOverlay);
+            videoFitBtn.addEventListener('click', () => videoFitMenu.classList.toggle('hidden'));
+            closePlayerBtn.addEventListener('click', closePlayer);
+            closeEpisodeOverlayBtn.addEventListener('click', toggleEpisodeOverlay);
+            
+            // Event listeners for the video fit menu options
+            document.querySelectorAll('.video-fit-option').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    changeVideoFit(e.target.dataset.fit);
+                    videoFitMenu.classList.add('hidden');
                 });
             });
-            updateFocusableElements();
-        }
 
-        /**
-         * Plays a specific episode.
-         * @param {string} url - The streaming URL.
-         * @param {string} title - The title of the episode.
-         */
-        function playEpisode(url, title) {
-            videoPlayer.src = url;
-            videoInfoSubtitle.textContent = title;
-            videoPlayer.load();
-            videoPlayer.play();
-            videoInfoOverlay.classList.remove('visible');
-        }
+            // Add touch event listeners for mobile/touchscreens
+            videoPlayerWrapper.addEventListener('touchstart', showControls);
+            videoPlayerWrapper.addEventListener('touchend', showControls);
 
-        /**
-         * Toggles play/pause state of the video.
-         */
-        function togglePlayPause() {
-            if (videoPlayer.paused || videoPlayer.ended) {
-                videoPlayer.play();
+            // Add mouse events for non-touchscreens
+            videoPlayerWrapper.addEventListener('mousemove', showControls);
+            videoPlayerWrapper.addEventListener('mouseleave', () => {
+                clearTimeout(controlsTimeout);
+                controlsTimeout = setTimeout(() => {
+                    videoPlayerWrapper.classList.remove('show-controls');
+                }, 1000); // Give a little buffer before hiding
+            });
+            
+            videoPlayer.addEventListener('loadedmetadata', () => {
+                durationSpan.textContent = formatTime(videoPlayer.duration);
+            });
+
+            videoPlayer.addEventListener('timeupdate', () => {
+                const progress = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                seekBarFilled.style.width = `${progress}%`;
+                currentTimeSpan.textContent = formatTime(videoPlayer.currentTime);
+            });
+
+            seekBar.addEventListener('click', (e) => {
+                const rect = seekBar.getBoundingClientRect();
+                const seekTime = ((e.clientX - rect.left) / rect.width) * videoPlayer.duration;
+                videoPlayer.currentTime = seekTime;
+            });
+            
+            videoPlayer.addEventListener('play', () => {
+                playPauseBtn.textContent = '⏸';
                 videoInfoOverlay.classList.remove('visible');
-            } else {
-                videoPlayer.pause();
-            }
-        }
-
-        /**
-         * Formats time in seconds to HH:MM:SS.
-         * @param {number} seconds - The time in seconds.
-         * @returns {string} The formatted time string.
-         */
-        function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = Math.floor(seconds % 60);
-            const pad = (num) => String(num).padStart(2, '0');
-            return `${pad(h > 0 ? h : '')}${h > 0 ? ':' : ''}${pad(m)}:${pad(s)}`;
-        }
-
-        /**
-         * Updates the list of focusable elements on the page.
-         */
-        function updateFocusableElements() {
-            focusableElements = Array.from(document.querySelectorAll('[data-focusable="true"]'));
-        }
-
-        /**
-         * Sets initial focus on the search input.
-         */
-        function setInitialFocus() {
-            updateFocusableElements();
-            if (focusableElements.length > 0) {
-                activeElementIndex = 0;
-                focusableElements[activeElementIndex].focus();
-            }
-        }
-
-        /**
-         * Finds the next focusable element in a given direction.
-         * This is the core logic for D-pad navigation.
-         * @param {string} direction - 'up', 'down', 'left', 'right'.
-         */
-        function findNextFocus(direction) {
-            const currentElement = focusableElements[activeElementIndex];
-            if (!currentElement) return;
-
-            const currentRect = currentElement.getBoundingClientRect();
-            let nextElement = null;
-            let minDistance = Infinity;
-
-            focusableElements.forEach((el, index) => {
-                if (el === currentElement) return;
-
-                const elRect = el.getBoundingClientRect();
-                let distance = Infinity;
-
-                if (direction === 'down' && elRect.top > currentRect.bottom) {
-                    distance = Math.sqrt(Math.pow(elRect.left - currentRect.left, 2) + Math.pow(elRect.top - currentRect.top, 2));
-                } else if (direction === 'up' && elRect.bottom < currentRect.top) {
-                    distance = Math.sqrt(Math.pow(elRect.left - currentRect.left, 2) + Math.pow(elRect.bottom - currentRect.bottom, 2));
-                } else if (direction === 'right' && elRect.left > currentRect.right) {
-                    distance = Math.sqrt(Math.pow(elRect.top - currentRect.top, 2) + Math.pow(elRect.left - currentRect.left, 2));
-                } else if (direction === 'left' && elRect.right < currentRect.left) {
-                    distance = Math.sqrt(Math.pow(elRect.top - currentRect.top, 2) + Math.pow(elRect.right - currentRect.right, 2));
-                }
-
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    nextElement = el;
-                    activeElementIndex = index;
+                videoLoadingSpinner.classList.remove('visible');
+                hideVideoError(); // Hide error on successful playback
+            });
+            
+            videoPlayer.addEventListener('pause', () => {
+                playPauseBtn.textContent = '▶';
+                // Show the info overlay on pause, but only if the video is not at the end
+                if (videoPlayer.currentTime < videoPlayer.duration && !videoErrorDialog.classList.contains('visible')) {
+                    videoInfoOverlay.classList.add('visible');
+                    // Update the overlay with current media info
+                    if (currentMedia) {
+                        videoInfoThumbnail.src = currentMedia.thumbnail || 'https://placehold.co/400x600/1f2937/d1d5db?text=No+Image';
+                        videoInfoTitle.textContent = currentMedia.name || currentMedia.title;
+                    }
                 }
             });
 
-            if (nextElement) {
-                nextElement.focus();
-            }
-        }
+            videoPlayer.addEventListener('waiting', () => {
+                videoLoadingSpinner.classList.add('visible');
+            });
 
-        // --- Event Listeners ---
+            videoPlayer.addEventListener('playing', () => {
+                videoLoadingSpinner.classList.remove('visible');
+            });
+            
+            videoPlayer.addEventListener('stalled', () => {
+                videoLoadingSpinner.classList.add('visible');
+            });
 
-        document.addEventListener('DOMContentLoaded', fetchAllData);
 
-        // Handle navigation with arrow keys for Android TV webview
-        document.addEventListener('keydown', (e) => {
-            if (videoPlayerModal.classList.contains('hidden')) {
-                // Main grid navigation
-                switch (e.key) {
-                    case 'ArrowDown':
-                        e.preventDefault();
-                        findNextFocus('down');
-                        break;
-                    case 'ArrowUp':
-                        e.preventDefault();
-                        findNextFocus('up');
-                        break;
-                    case 'ArrowLeft':
-                        e.preventDefault();
-                        findNextFocus('left');
-                        break;
-                    case 'ArrowRight':
-                        e.preventDefault();
-                        findNextFocus('right');
-                        break;
-                    case 'Enter':
-                        e.preventDefault();
-                        const activeEl = document.activeElement;
-                        if (activeEl && activeEl.getAttribute('data-focusable') === 'true') {
-                            activeEl.click();
-                        }
-                        break;
-                    case 'Backspace':
-                    case 'Escape':
-                        e.preventDefault();
-                        // Handle back action (e.g., clear search, go back to main screen)
-                        if (searchInput.value !== '') {
-                             searchInput.value = '';
-                             updateMediaGrid();
-                        }
-                        break;
-                }
-            } else {
-                // Player modal navigation
-                switch (e.key) {
-                    case 'ArrowUp':
-                    case 'ArrowDown':
-                    case 'ArrowLeft':
-                    case 'ArrowRight':
-                        // Allow navigation within player controls or episode list
-                        break;
-                    case 'Enter':
-                        // Play/Pause on Enter press
-                        togglePlayPause();
-                        break;
-                    case 'Escape':
-                    case 'Backspace':
-                        // Close player on back/escape
-                        videoPlayerModal.classList.add('hidden');
-                        videoPlayer.pause();
-                        videoPlayer.currentTime = 0;
-                        break;
-                }
-            }
-        });
-
-        // Tab and Enter key listeners for accessibility and TV remote support
-        document.addEventListener('keydown', (e) => {
-            // Re-map the Enter key to click a focused element
-            if (e.key === 'Enter') {
-                const activeEl = document.activeElement;
-                if (activeEl && activeEl.getAttribute('data-focusable') === 'true') {
-                    e.preventDefault();
-                    activeEl.click();
-                }
-            }
-        });
-
-        // Search functionality
-        let searchTimeout;
-        searchInput.addEventListener('input', () => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                updateMediaGrid(searchInput.value);
-            }, 300);
-        });
-
-        // Tab switching
-        moviesTab.addEventListener('click', () => {
-            currentMediaType = 'movies';
-            moviesTab.classList.add('border-teal-400', 'text-white');
-            moviesTab.classList.remove('text-gray-400');
-            seriesTab.classList.remove('border-teal-400', 'text-white');
-            seriesTab.classList.add('text-gray-400');
-            updateMediaGrid(searchInput.value);
-        });
-
-        seriesTab.addEventListener('click', () => {
-            currentMediaType = 'series';
-            seriesTab.classList.add('border-teal-400', 'text-white');
-            seriesTab.classList.remove('text-gray-400');
-            moviesTab.classList.remove('border-teal-400', 'text-white');
-            moviesTab.classList.add('text-gray-400');
-            updateMediaGrid(searchInput.value);
-        });
-        
-        // Video player controls
-        closePlayerBtn.addEventListener('click', () => {
-            videoPlayerModal.classList.add('hidden');
-            videoPlayer.pause();
-            videoPlayer.currentTime = 0;
-        });
-
-        playPauseBtn.addEventListener('click', togglePlayPause);
-
-        videoPlayer.addEventListener('play', () => {
-            playPauseBtn.textContent = '⏸';
-            videoInfoOverlay.classList.remove('visible');
-        });
-
-        videoPlayer.addEventListener('pause', () => {
-            playPauseBtn.textContent = '▶';
-            // Show the info overlay on pause, but only if the video is not at the end
-            if (videoPlayer.currentTime < videoPlayer.duration && !videoErrorDialog.classList.contains('visible')) {
-                videoInfoOverlay.classList.add('visible');
-                // Update the overlay with current media info
-                if (currentMedia) {
-                    videoInfoThumbnail.src = currentMedia.thumbnail || 'https://placehold.co/400x600/1f2937/d1d5db?text=No+Image';
-                    videoInfoTitle.textContent = currentMedia.name || currentMedia.title;
-                }
-            }
-        });
-
-        videoPlayer.addEventListener('waiting', () => {
-            videoLoadingSpinner.classList.add('visible');
-        });
-
-        videoPlayer.addEventListener('playing', () => {
-            videoLoadingSpinner.classList.remove('visible');
-        });
-        
-        videoPlayer.addEventListener('stalled', () => {
-            videoLoadingSpinner.classList.add('visible');
-        });
-
-        videoPlayer.addEventListener('timeupdate', () => {
-            const currentTime = videoPlayer.currentTime;
-            const duration = videoPlayer.duration;
-            const progress = (currentTime / duration) * 100;
-            seekBarFilled.style.width = `${progress}%`;
-            videoTime.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
-        });
-        
-        videoPlayer.addEventListener('error', (e) => {
-            console.error('Video playback error:', e);
-            let message = "An unknown error occurred during video playback.";
-            if (videoPlayer.error) {
-                switch (videoPlayer.error.code) {
-                    case videoPlayer.error.MEDIA_ERR_ABORTED:
-                        message = "The video playback was aborted.";
-                        break;
-                    case videoPlayer.error.MEDIA_ERR_NETWORK:
-                        message = "A network error caused the video to fail.";
-                        break;
-                    case videoPlayer.error.MEDIA_ERR_DECODE:
-                        message = "The video format is not supported.";
-                        break;
-                    case videoPlayer.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                        message = "The video URL is not supported or cannot be found.";
-                        break;
-                    default:
-                        message = `Video playback error: Code ${videoPlayer.error.code}`;
-                        break;
-                }
-            }
-            showVideoError(message);
-            videoLoadingSpinner.classList.remove('visible');
-        });
-
-        seekBar.addEventListener('click', (e) => {
-            const rect = seekBar.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const percent = x / rect.width;
-            videoPlayer.currentTime = videoPlayer.duration * percent;
-        });
-
-        videoErrorOkBtn.addEventListener('click', () => {
-            hideVideoError();
-            videoPlayer.pause();
-            videoPlayer.currentTime = 0;
-            // Focus on close player button after error dismissal
-            closePlayerBtn.focus();
-        });
-
-        fullscreenBtn.addEventListener('click', () => {
-            if (videoPlayer.requestFullscreen) {
-                videoPlayer.requestFullscreen();
-            } else if (videoPlayer.webkitRequestFullscreen) { /* Safari */
-                videoPlayer.webkitRequestFullscreen();
-            } else if (videoPlayer.msRequestFullscreen) { /* IE11 */
-                videoPlayer.msRequestFullscreen();
-            }
+            // Setup remote navigation on initial load
+            setupRemoteNavigation();
         });
     </script>
 </body>
 </html>
+
+
